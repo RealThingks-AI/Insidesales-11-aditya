@@ -75,13 +75,25 @@ async function getUserId(accessToken: string, email: string): Promise<string> {
 async function cancelCalendarEvents(accessToken: string, userId: string, joinUrl: string): Promise<boolean> {
   console.log('Searching for calendar events with join URL:', joinUrl);
   
+  // Normalize the join URL by decoding it for comparison
+  const normalizeUrl = (url: string): string => {
+    try {
+      return decodeURIComponent(url).toLowerCase();
+    } catch {
+      return url.toLowerCase();
+    }
+  };
+  
+  const normalizedTargetUrl = normalizeUrl(joinUrl);
+  console.log('Normalized target URL:', normalizedTargetUrl);
+  
   // Search for calendar events - limited time range for better performance
   const now = new Date();
   const startDateTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days ago
   const endDateTime = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days ahead
   
   const eventsResponse = await fetch(
-    `https://graph.microsoft.com/v1.0/users/${userId}/calendarView?startDateTime=${startDateTime}&endDateTime=${endDateTime}&$top=50&$select=id,subject,onlineMeeting,isOnlineMeeting`,
+    `https://graph.microsoft.com/v1.0/users/${userId}/calendarView?startDateTime=${startDateTime}&endDateTime=${endDateTime}&$top=50&$select=id,subject,onlineMeeting,isOnlineMeeting,body`,
     {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -103,9 +115,21 @@ async function cancelCalendarEvents(accessToken: string, userId: string, joinUrl
   let cancelledCount = 0;
   
   for (const event of eventsData.value || []) {
-    // Only match EXACT join URL to avoid deleting wrong events
     const eventJoinUrl = event.onlineMeeting?.joinUrl;
-    if (eventJoinUrl && eventJoinUrl === joinUrl) {
+    
+    if (!eventJoinUrl) {
+      continue;
+    }
+    
+    const normalizedEventUrl = normalizeUrl(eventJoinUrl);
+    
+    // Compare normalized URLs or check if one contains the key meeting identifier
+    const targetMeetingId = extractMeetingId(normalizedTargetUrl);
+    const eventMeetingId = extractMeetingId(normalizedEventUrl);
+    
+    console.log(`Comparing event "${event.subject}": targetMeetingId=${targetMeetingId}, eventMeetingId=${eventMeetingId}`);
+    
+    if (targetMeetingId && eventMeetingId && targetMeetingId === eventMeetingId) {
       console.log('Found matching calendar event:', event.id, event.subject);
       
       // Cancel/Delete the calendar event
@@ -122,7 +146,7 @@ async function cancelCalendarEvents(accessToken: string, userId: string, joinUrl
       if (deleteResponse.ok || deleteResponse.status === 204) {
         console.log('Successfully deleted calendar event:', event.id);
         cancelledCount++;
-        // Only delete one matching event to be safe
+        // Only delete ONE matching event
         break;
       } else {
         const deleteError = await deleteResponse.text();
@@ -133,6 +157,16 @@ async function cancelCalendarEvents(accessToken: string, userId: string, joinUrl
   
   console.log(`Cancelled ${cancelledCount} calendar event(s)`);
   return cancelledCount > 0;
+}
+
+// Extract the unique meeting ID from a Teams join URL
+function extractMeetingId(url: string): string | null {
+  // Teams meeting URLs contain a meeting ID like: 19:meeting_xxxxx@thread.v2
+  const match = url.match(/19:meeting_([a-z0-9-]+)@thread\.v2/i);
+  if (match) {
+    return match[1].toLowerCase();
+  }
+  return null;
 }
 
 async function deleteOnlineMeeting(accessToken: string, userId: string, joinUrl: string): Promise<boolean> {
