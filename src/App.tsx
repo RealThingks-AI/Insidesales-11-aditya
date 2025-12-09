@@ -14,6 +14,7 @@ import Contacts from "./pages/Contacts";
 import Leads from "./pages/Leads";
 import Meetings from "./pages/Meetings";
 import DealsPage from "./pages/DealsPage";
+import Tasks from "./pages/Tasks";
 import Settings from "./pages/Settings";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -141,6 +142,11 @@ const AppRouter = () => (
       <Route path="/notifications" element={
         <ProtectedRoute>
           <Notifications />
+        </ProtectedRoute>
+      } />
+      <Route path="/tasks" element={
+        <ProtectedRoute>
+          <Tasks />
         </ProtectedRoute>
       } />
       <Route path="/settings" element={
