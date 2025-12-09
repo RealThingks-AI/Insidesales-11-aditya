@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, Video, Trash2, Edit, Calendar, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Search, Video, Trash2, Edit, Calendar, ArrowUpDown, ArrowUp, ArrowDown, List, CalendarDays } from "lucide-react";
+import { MeetingsCalendarView } from "@/components/meetings/MeetingsCalendarView";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MeetingModal } from "@/components/MeetingModal";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -52,6 +53,7 @@ const Meetings = () => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table');
   const fetchMeetings = async () => {
     try {
       setLoading(true);
@@ -245,158 +247,212 @@ const Meetings = () => {
             <div className="min-w-0 flex-1">
               <h1 className="text-2xl font-bold text-foreground">Meetings</h1>
             </div>
-            <Button onClick={() => {
-            setEditingMeeting(null);
-            setShowModal(true);
-          }} className="gap-2">
-              <Plus className="h-4 w-4" />
-              New Meeting
-            </Button>
+            <div className="flex items-center gap-3">
+              {/* View Toggle */}
+              <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
+                <Button
+                  variant={viewMode === 'table' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('table')}
+                  className="gap-2"
+                >
+                  <List className="h-4 w-4" />
+                  List
+                </Button>
+                <Button
+                  variant={viewMode === 'calendar' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('calendar')}
+                  className="gap-2"
+                >
+                  <CalendarDays className="h-4 w-4" />
+                  Calendar
+                </Button>
+              </div>
+              
+              <Button onClick={() => {
+                setEditingMeeting(null);
+                setShowModal(true);
+              }} className="gap-2">
+                <Plus className="h-4 w-4" />
+                New Meeting
+              </Button>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
       <div className="flex-1 min-h-0 overflow-auto p-6">
-        <div className="space-y-4">
-          {/* Search and Bulk Actions */}
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search meetings..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
+        {viewMode === 'calendar' ? (
+          <MeetingsCalendarView 
+            meetings={filteredMeetings} 
+            onMeetingClick={(meeting) => {
+              setEditingMeeting(meeting);
+              setShowModal(true);
+            }}
+          />
+        ) : (
+          <div className="space-y-4">
+            {/* Search and Bulk Actions */}
+            <div className="flex items-center gap-4">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Search meetings..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
+              </div>
+              
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="scheduled">Scheduled</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              {/* Bulk Actions */}
+              {selectedMeetings.length > 0 && (
+                <div className="flex items-center gap-2 bg-muted/50 px-4 py-2 rounded-lg">
+                  <span className="text-sm text-muted-foreground">
+                    {selectedMeetings.length} selected
+                  </span>
+                  <Button variant="destructive" size="sm" onClick={() => setShowBulkDeleteDialog(true)} className="gap-2">
+                    <Trash2 className="h-4 w-4" />
+                    Delete Selected
+                  </Button>
+                </div>
+              )}
             </div>
-            
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[150px]">
-                
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="scheduled">Scheduled</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="cancelled">Cancelled</SelectItem>
-              </SelectContent>
-            </Select>
-            
-            {/* Bulk Actions */}
-            {selectedMeetings.length > 0 && <div className="flex items-center gap-2 bg-muted/50 px-4 py-2 rounded-lg">
-                <span className="text-sm text-muted-foreground">
-                  {selectedMeetings.length} selected
-                </span>
-                <Button variant="destructive" size="sm" onClick={() => setShowBulkDeleteDialog(true)} className="gap-2">
-                  <Trash2 className="h-4 w-4" />
-                  Delete Selected
-                </Button>
-              </div>}
-          </div>
 
-          {/* Table */}
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[50px]">
-                    <Checkbox checked={isAllSelected} ref={el => {
-                    if (el) {
-                      (el as any).indeterminate = isSomeSelected;
-                    }
-                  }} onCheckedChange={handleSelectAll} aria-label="Select all" />
-                  </TableHead>
-                  <TableHead>
-                    <button 
-                      onClick={() => handleSort('subject')} 
-                      className="flex items-center hover:text-foreground transition-colors"
-                    >
-                      Subject {getSortIcon('subject')}
-                    </button>
-                  </TableHead>
-                  <TableHead>
-                    <button 
-                      onClick={() => handleSort('date')} 
-                      className="flex items-center hover:text-foreground transition-colors"
-                    >
-                      Date {getSortIcon('date')}
-                    </button>
-                  </TableHead>
-                  <TableHead>
-                    <button 
-                      onClick={() => handleSort('time')} 
-                      className="flex items-center hover:text-foreground transition-colors"
-                    >
-                      Time {getSortIcon('time')}
-                    </button>
-                  </TableHead>
-                  <TableHead>
-                    <button 
-                      onClick={() => handleSort('lead_contact')} 
-                      className="flex items-center hover:text-foreground transition-colors"
-                    >
-                      Lead/Contact {getSortIcon('lead_contact')}
-                    </button>
-                  </TableHead>
-                  <TableHead>
-                    <button 
-                      onClick={() => handleSort('status')} 
-                      className="flex items-center hover:text-foreground transition-colors"
-                    >
-                      Status {getSortIcon('status')}
-                    </button>
-                  </TableHead>
-                  <TableHead>Join URL</TableHead>
-                  <TableHead className="w-[100px]">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredMeetings.length === 0 ? <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                      <Calendar className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                      No meetings found
-                    </TableCell>
-                  </TableRow> : filteredMeetings.map(meeting => <TableRow key={meeting.id} className={selectedMeetings.includes(meeting.id) ? "bg-muted/50" : ""}>
-                      <TableCell>
-                        <Checkbox checked={selectedMeetings.includes(meeting.id)} onCheckedChange={checked => handleSelectMeeting(meeting.id, !!checked)} aria-label={`Select ${meeting.subject}`} />
+            {/* Table */}
+            <Card>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[50px]">
+                      <Checkbox 
+                        checked={isAllSelected} 
+                        ref={el => {
+                          if (el) {
+                            (el as any).indeterminate = isSomeSelected;
+                          }
+                        }} 
+                        onCheckedChange={handleSelectAll} 
+                        aria-label="Select all" 
+                      />
+                    </TableHead>
+                    <TableHead>
+                      <button 
+                        onClick={() => handleSort('subject')} 
+                        className="flex items-center hover:text-foreground transition-colors"
+                      >
+                        Subject {getSortIcon('subject')}
+                      </button>
+                    </TableHead>
+                    <TableHead>
+                      <button 
+                        onClick={() => handleSort('date')} 
+                        className="flex items-center hover:text-foreground transition-colors"
+                      >
+                        Date {getSortIcon('date')}
+                      </button>
+                    </TableHead>
+                    <TableHead>
+                      <button 
+                        onClick={() => handleSort('time')} 
+                        className="flex items-center hover:text-foreground transition-colors"
+                      >
+                        Time {getSortIcon('time')}
+                      </button>
+                    </TableHead>
+                    <TableHead>
+                      <button 
+                        onClick={() => handleSort('lead_contact')} 
+                        className="flex items-center hover:text-foreground transition-colors"
+                      >
+                        Lead/Contact {getSortIcon('lead_contact')}
+                      </button>
+                    </TableHead>
+                    <TableHead>
+                      <button 
+                        onClick={() => handleSort('status')} 
+                        className="flex items-center hover:text-foreground transition-colors"
+                      >
+                        Status {getSortIcon('status')}
+                      </button>
+                    </TableHead>
+                    <TableHead>Join URL</TableHead>
+                    <TableHead className="w-[100px]">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredMeetings.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                        <Calendar className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                        No meetings found
                       </TableCell>
-                      <TableCell className="font-medium">{meeting.subject}</TableCell>
-                      <TableCell className="text-sm">
-                        {format(new Date(meeting.start_time), 'MMM dd, yyyy')}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {format(new Date(meeting.start_time), 'HH:mm')} - {format(new Date(meeting.end_time), 'HH:mm')}
-                      </TableCell>
-                      <TableCell>
-                        {meeting.lead_name && <div>Lead: {meeting.lead_name}</div>}
-                        {meeting.contact_name && <div>Contact: {meeting.contact_name}</div>}
-                        {!meeting.lead_name && !meeting.contact_name && <span className="text-muted-foreground">—</span>}
-                      </TableCell>
-                      <TableCell>{getStatusBadge(meeting.status, meeting.start_time)}</TableCell>
-                      <TableCell>
-                        {meeting.join_url ? <a href={meeting.join_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
-                            <Video className="h-4 w-4" />
-                            Join
-                          </a> : <span className="text-muted-foreground">—</span>}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Button variant="ghost" size="icon" onClick={() => {
-                      setEditingMeeting(meeting);
-                      setShowModal(true);
-                    }}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => {
-                      setMeetingToDelete(meeting.id);
-                      setShowDeleteDialog(true);
-                    }}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>)}
-              </TableBody>
-            </Table>
-          </Card>
-        </div>
+                    </TableRow>
+                  ) : (
+                    filteredMeetings.map(meeting => (
+                      <TableRow key={meeting.id} className={selectedMeetings.includes(meeting.id) ? "bg-muted/50" : ""}>
+                        <TableCell>
+                          <Checkbox 
+                            checked={selectedMeetings.includes(meeting.id)} 
+                            onCheckedChange={checked => handleSelectMeeting(meeting.id, !!checked)} 
+                            aria-label={`Select ${meeting.subject}`} 
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">{meeting.subject}</TableCell>
+                        <TableCell className="text-sm">
+                          {format(new Date(meeting.start_time), 'MMM dd, yyyy')}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {format(new Date(meeting.start_time), 'HH:mm')} - {format(new Date(meeting.end_time), 'HH:mm')}
+                        </TableCell>
+                        <TableCell>
+                          {meeting.lead_name && <div>Lead: {meeting.lead_name}</div>}
+                          {meeting.contact_name && <div>Contact: {meeting.contact_name}</div>}
+                          {!meeting.lead_name && !meeting.contact_name && <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                        <TableCell>{getStatusBadge(meeting.status, meeting.start_time)}</TableCell>
+                        <TableCell>
+                          {meeting.join_url ? (
+                            <a href={meeting.join_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
+                              <Video className="h-4 w-4" />
+                              Join
+                            </a>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Button variant="ghost" size="icon" onClick={() => {
+                              setEditingMeeting(meeting);
+                              setShowModal(true);
+                            }}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => {
+                              setMeetingToDelete(meeting.id);
+                              setShowDeleteDialog(true);
+                            }}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </Card>
+          </div>
+        )}
       </div>
 
       {/* Modals */}
