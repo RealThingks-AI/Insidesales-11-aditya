@@ -19,6 +19,7 @@ import { MeetingOutcomeSelect } from "@/components/meetings/MeetingOutcomeSelect
 import { MeetingNotesSection } from "@/components/meetings/MeetingNotesSection";
 import { MeetingFollowUpsSection } from "@/components/meetings/MeetingFollowUpsSection";
 import { MeetingReminderSettings } from "@/components/meetings/MeetingReminderSettings";
+import { MeetingConflictWarning } from "@/components/meetings/MeetingConflictWarning";
 // Comprehensive timezones (40 options, ordered by GMT offset)
 const TIMEZONES = [
   { value: "Pacific/Midway", label: "(GMT-11:00) Midway Island, Samoa" },
@@ -212,6 +213,23 @@ export const MeetingModal = ({ open, onOpenChange, meeting, onSuccess }: Meeting
     endDateTime.setMinutes(endDateTime.getMinutes() + durationMinutes);
     return endDateTime;
   };
+
+  // Compute proposed meeting times for conflict detection
+  const proposedStartTime = useMemo(() => {
+    if (!startDate) return "";
+    const [h, m] = startTime.split(":").map(Number);
+    const dt = new Date(startDate);
+    dt.setHours(h, m, 0, 0);
+    const utcTime = fromZonedTime(dt, timezone);
+    return utcTime.toISOString();
+  }, [startDate, startTime, timezone]);
+
+  const proposedEndTime = useMemo(() => {
+    if (!startDate) return "";
+    const endDateTime = calculateEndDateTime(startDate, startTime, parseInt(duration));
+    const utcTime = fromZonedTime(endDateTime, timezone);
+    return utcTime.toISOString();
+  }, [startDate, startTime, duration, timezone]);
 
   useEffect(() => {
     if (open) {
@@ -595,6 +613,15 @@ export const MeetingModal = ({ open, onOpenChange, meeting, onSuccess }: Meeting
                   </Select>
                 </div>
               </div>
+
+              {/* Conflict Warning */}
+              {proposedStartTime && proposedEndTime && (
+                <MeetingConflictWarning
+                  startTime={proposedStartTime}
+                  endTime={proposedEndTime}
+                  excludeMeetingId={meeting?.id}
+                />
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
