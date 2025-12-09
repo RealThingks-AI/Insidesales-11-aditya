@@ -31,6 +31,12 @@ const TIMEZONES = [
   { value: "Australia/Sydney", label: "Sydney (AEST/AEDT)" },
 ];
 
+// Duration options
+const DURATION_OPTIONS = [
+  { value: "30", label: "30 Minutes" },
+  { value: "60", label: "1 Hour" },
+];
+
 // Generate 15-minute time slots
 const generateTimeSlots = () => {
   const slots: string[] = [];
@@ -90,8 +96,7 @@ export const MeetingModal = ({ open, onOpenChange, meeting, onSuccess }: Meeting
   const [timezone, setTimezone] = useState("Europe/Berlin");
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [startTime, setStartTime] = useState("09:00");
-  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-  const [endTime, setEndTime] = useState("10:00");
+  const [duration, setDuration] = useState("60"); // Duration in minutes
   
   const [formData, setFormData] = useState({
     subject: "",
@@ -107,7 +112,7 @@ export const MeetingModal = ({ open, onOpenChange, meeting, onSuccess }: Meeting
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
   // Filter time slots to exclude past times for today
-  const getAvailableTimeSlots = (selectedDate: Date | undefined, isStart: boolean) => {
+  const getAvailableTimeSlots = (selectedDate: Date | undefined) => {
     if (!selectedDate) return TIME_SLOTS;
     
     const selectedDateOnly = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
@@ -127,16 +132,16 @@ export const MeetingModal = ({ open, onOpenChange, meeting, onSuccess }: Meeting
     });
   };
 
-  const availableStartTimeSlots = useMemo(() => getAvailableTimeSlots(startDate, true), [startDate, now]);
-  const availableEndTimeSlots = useMemo(() => {
-    const slots = getAvailableTimeSlots(endDate, false);
-    
-    // If same day as start, end time must be after start time
-    if (startDate && endDate && startDate.toDateString() === endDate.toDateString()) {
-      return slots.filter(slot => slot > startTime);
-    }
-    return slots;
-  }, [endDate, startDate, startTime, now]);
+  const availableStartTimeSlots = useMemo(() => getAvailableTimeSlots(startDate), [startDate, now]);
+
+  // Calculate end time based on start time and duration
+  const calculateEndDateTime = (start: Date, time: string, durationMinutes: number) => {
+    const [h, m] = time.split(":").map(Number);
+    const endDateTime = new Date(start);
+    endDateTime.setHours(h, m, 0, 0);
+    endDateTime.setMinutes(endDateTime.getMinutes() + durationMinutes);
+    return endDateTime;
+  };
 
   useEffect(() => {
     if (open) {
@@ -145,10 +150,13 @@ export const MeetingModal = ({ open, onOpenChange, meeting, onSuccess }: Meeting
         const start = new Date(meeting.start_time);
         const end = new Date(meeting.end_time);
         
+        // Calculate duration from existing meeting
+        const durationMs = end.getTime() - start.getTime();
+        const durationMinutes = Math.round(durationMs / (1000 * 60));
+        
         setStartDate(start);
         setStartTime(format(start, "HH:mm"));
-        setEndDate(end);
-        setEndTime(format(end, "HH:mm"));
+        setDuration(durationMinutes <= 30 ? "30" : "60");
         
         setFormData({
           subject: meeting.subject || "",
@@ -166,12 +174,9 @@ export const MeetingModal = ({ open, onOpenChange, meeting, onSuccess }: Meeting
           defaultStart.setHours(defaultStart.getHours());
         }
         
-        const defaultEnd = new Date(defaultStart.getTime() + 60 * 60 * 1000);
-        
         setStartDate(defaultStart);
         setStartTime(format(defaultStart, "HH:mm"));
-        setEndDate(defaultEnd);
-        setEndTime(format(defaultEnd, "HH:mm"));
+        setDuration("60");
         
         setFormData({
           subject: "",
@@ -184,28 +189,6 @@ export const MeetingModal = ({ open, onOpenChange, meeting, onSuccess }: Meeting
       }
     }
   }, [open, meeting]);
-
-  // Auto-adjust end date/time when start changes
-  useEffect(() => {
-    if (startDate && startTime) {
-      const [sh, sm] = startTime.split(":").map(Number);
-      const startDateTime = new Date(startDate);
-      startDateTime.setHours(sh, sm, 0, 0);
-      
-      // If end is before start, adjust end to 1 hour after start
-      if (endDate && endTime) {
-        const [eh, em] = endTime.split(":").map(Number);
-        const endDateTime = new Date(endDate);
-        endDateTime.setHours(eh, em, 0, 0);
-        
-        if (endDateTime <= startDateTime) {
-          const newEnd = new Date(startDateTime.getTime() + 60 * 60 * 1000);
-          setEndDate(newEnd);
-          setEndTime(format(newEnd, "HH:mm"));
-        }
-      }
-    }
-  }, [startDate, startTime]);
 
   const fetchLeadsAndContacts = async () => {
     try {
@@ -229,11 +212,17 @@ export const MeetingModal = ({ open, onOpenChange, meeting, onSuccess }: Meeting
     return dt.toISOString();
   };
 
+  const buildEndISODateTime = (date: Date | undefined, time: string, durationMinutes: number): string => {
+    if (!date) return "";
+    const endDateTime = calculateEndDateTime(date, time, durationMinutes);
+    return endDateTime.toISOString();
+  };
+
   const createTeamsMeeting = async () => {
-    if (!formData.subject || !startDate || !endDate) {
+    if (!formData.subject || !startDate) {
       toast({
         title: "Missing fields",
-        description: "Please fill in subject, start time and end time first",
+        description: "Please fill in subject and start time first",
         variant: "destructive",
       });
       return;
@@ -262,7 +251,7 @@ export const MeetingModal = ({ open, onOpenChange, meeting, onSuccess }: Meeting
           subject: formData.subject,
           attendees,
           startTime: buildISODateTime(startDate, startTime),
-          endTime: buildISODateTime(endDate, endTime)
+          endTime: buildEndISODateTime(startDate, startTime, parseInt(duration))
         }
       });
 
@@ -290,7 +279,7 @@ export const MeetingModal = ({ open, onOpenChange, meeting, onSuccess }: Meeting
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.subject || !startDate || !endDate) {
+    if (!formData.subject || !startDate) {
       toast({
         title: "Missing fields",
         description: "Please fill in all required fields",
@@ -305,7 +294,7 @@ export const MeetingModal = ({ open, onOpenChange, meeting, onSuccess }: Meeting
         subject: formData.subject,
         description: formData.description || null,
         start_time: buildISODateTime(startDate, startTime),
-        end_time: buildISODateTime(endDate, endTime),
+        end_time: buildEndISODateTime(startDate, startTime, parseInt(duration)),
         join_url: formData.join_url || null,
         lead_id: formData.lead_id || null,
         contact_id: formData.contact_id || null,
@@ -386,8 +375,8 @@ export const MeetingModal = ({ open, onOpenChange, meeting, onSuccess }: Meeting
             </Select>
           </div>
 
-          {/* Start Date & Time */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Start Date, Time & Duration */}
+          <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label>Start Date *</Label>
               <Popover>
@@ -447,68 +436,20 @@ export const MeetingModal = ({ open, onOpenChange, meeting, onSuccess }: Meeting
                 </PopoverContent>
               </Popover>
             </div>
-          </div>
-
-          {/* End Date & Time */}
-          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>End Date *</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !endDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {endDate ? format(endDate, "dd-MMM-yyyy") : "Pick a date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 z-50" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={endDate}
-                    onSelect={setEndDate}
-                    disabled={(date) => date < (startDate || today)}
-                    initialFocus
-                    className="pointer-events-auto"
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div className="space-y-2">
-              <Label>End Time *</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal"
-                  >
-                    <Clock className="mr-2 h-4 w-4" />
-                    {formatDisplayTime(endTime)}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-48 p-0 z-50 max-h-60 overflow-y-auto" align="start">
-                  <div className="p-2 space-y-1">
-                    {availableEndTimeSlots.length > 0 ? (
-                      availableEndTimeSlots.map((slot) => (
-                        <Button
-                          key={slot}
-                          variant={endTime === slot ? "default" : "ghost"}
-                          className="w-full justify-start text-sm"
-                          onClick={() => setEndTime(slot)}
-                        >
-                          {formatDisplayTime(slot)}
-                        </Button>
-                      ))
-                    ) : (
-                      <p className="text-sm text-muted-foreground p-2">Select a later end time</p>
-                    )}
-                  </div>
-                </PopoverContent>
-              </Popover>
+              <Label>Duration *</Label>
+              <Select value={duration} onValueChange={setDuration}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select duration" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DURATION_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
