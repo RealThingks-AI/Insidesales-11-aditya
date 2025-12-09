@@ -5,6 +5,16 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Meeting {
   id: string;
@@ -29,6 +39,12 @@ interface MeetingsCalendarViewProps {
   onMeetingUpdated?: () => void;
 }
 
+interface PendingReschedule {
+  meeting: Meeting;
+  newStart: Date;
+  newEnd: Date;
+}
+
 const WORK_START_HOUR = 8;
 const WORK_END_HOUR = 20;
 
@@ -38,6 +54,8 @@ export const MeetingsCalendarView = ({ meetings, onMeetingClick, onMeetingUpdate
   const [draggedMeeting, setDraggedMeeting] = useState<Meeting | null>(null);
   const [dragOverDate, setDragOverDate] = useState<Date | null>(null);
   const [dragOverHour, setDragOverHour] = useState<number | null>(null);
+  const [pendingReschedule, setPendingReschedule] = useState<PendingReschedule | null>(null);
+  const [isRescheduling, setIsRescheduling] = useState(false);
   const { toast } = useToast();
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
@@ -158,20 +176,34 @@ export const MeetingsCalendarView = ({ meetings, onMeetingClick, onMeetingUpdate
 
     const newEnd = new Date(newStart.getTime() + duration * 60 * 1000);
 
+    // Show confirmation dialog instead of directly updating
+    setPendingReschedule({
+      meeting: draggedMeeting,
+      newStart,
+      newEnd,
+    });
+
+    handleDragEnd();
+  };
+
+  const confirmReschedule = async () => {
+    if (!pendingReschedule) return;
+
+    setIsRescheduling(true);
     try {
       const { error } = await supabase
         .from('meetings')
         .update({
-          start_time: newStart.toISOString(),
-          end_time: newEnd.toISOString(),
+          start_time: pendingReschedule.newStart.toISOString(),
+          end_time: pendingReschedule.newEnd.toISOString(),
         })
-        .eq('id', draggedMeeting.id);
+        .eq('id', pendingReschedule.meeting.id);
 
       if (error) throw error;
 
       toast({
         title: "Meeting rescheduled",
-        description: `${draggedMeeting.subject} moved to ${format(newStart, 'MMM d, yyyy h:mm a')}`,
+        description: `${pendingReschedule.meeting.subject} moved to ${format(pendingReschedule.newStart, 'MMM d, yyyy h:mm a')}`,
       });
 
       onMeetingUpdated?.();
@@ -182,9 +214,14 @@ export const MeetingsCalendarView = ({ meetings, onMeetingClick, onMeetingUpdate
         description: "Failed to reschedule meeting",
         variant: "destructive",
       });
+    } finally {
+      setIsRescheduling(false);
+      setPendingReschedule(null);
     }
+  };
 
-    handleDragEnd();
+  const cancelReschedule = () => {
+    setPendingReschedule(null);
   };
 
   const getHeaderTitle = () => {
@@ -197,88 +234,116 @@ export const MeetingsCalendarView = ({ meetings, onMeetingClick, onMeetingUpdate
   };
 
   return (
-    <div className="flex flex-col h-full bg-card rounded-lg border">
-      {/* Calendar Header */}
-      <div className="flex items-center justify-between p-4 border-b">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={goToToday}>
-            Today
-          </Button>
-          <div className="flex items-center">
-            <Button variant="ghost" size="icon" onClick={goToPrevious}>
-              <ChevronLeft className="h-4 w-4" />
+    <>
+      <div className="flex flex-col h-full bg-card rounded-lg border">
+        {/* Calendar Header */}
+        <div className="flex items-center justify-between p-4 border-b">
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={goToToday}>
+              Today
             </Button>
-            <Button variant="ghost" size="icon" onClick={goToNext}>
-              <ChevronRight className="h-4 w-4" />
+            <div className="flex items-center">
+              <Button variant="ghost" size="icon" onClick={goToPrevious}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={goToNext}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+            <h2 className="text-lg font-semibold ml-2">
+              {getHeaderTitle()}
+            </h2>
+          </div>
+          
+          <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
+            <Button
+              variant={viewMode === 'day' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('day')}
+            >
+              Day
+            </Button>
+            <Button
+              variant={viewMode === 'week' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('week')}
+            >
+              Week
+            </Button>
+            <Button
+              variant={viewMode === 'month' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('month')}
+            >
+              Month
             </Button>
           </div>
-          <h2 className="text-lg font-semibold ml-2">
-            {getHeaderTitle()}
-          </h2>
         </div>
-        
-        <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
-          <Button
-            variant={viewMode === 'day' ? 'secondary' : 'ghost'}
-            size="sm"
-            onClick={() => setViewMode('day')}
-          >
-            Day
-          </Button>
-          <Button
-            variant={viewMode === 'week' ? 'secondary' : 'ghost'}
-            size="sm"
-            onClick={() => setViewMode('week')}
-          >
-            Week
-          </Button>
-          <Button
-            variant={viewMode === 'month' ? 'secondary' : 'ghost'}
-            size="sm"
-            onClick={() => setViewMode('month')}
-          >
-            Month
-          </Button>
+
+        {/* Calendar Grid */}
+        <div className="flex-1 overflow-auto">
+          {viewMode === 'month' ? (
+            <MonthView
+              days={monthDays}
+              currentDate={currentDate}
+              getMeetingsForDay={getMeetingsForDay}
+              getMeetingColor={getMeetingColor}
+              onMeetingClick={onMeetingClick}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              dragOverDate={dragOverDate}
+              draggedMeeting={draggedMeeting}
+            />
+          ) : (
+            <DayWeekView
+              displayDays={displayDays}
+              workHours={workHours}
+              getMeetingsForDay={getMeetingsForDay}
+              getMeetingPosition={getMeetingPosition}
+              getMeetingColor={getMeetingColor}
+              onMeetingClick={onMeetingClick}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              dragOverDate={dragOverDate}
+              dragOverHour={dragOverHour}
+              draggedMeeting={draggedMeeting}
+            />
+          )}
         </div>
       </div>
 
-      {/* Calendar Grid */}
-      <div className="flex-1 overflow-auto">
-        {viewMode === 'month' ? (
-          <MonthView
-            days={monthDays}
-            currentDate={currentDate}
-            getMeetingsForDay={getMeetingsForDay}
-            getMeetingColor={getMeetingColor}
-            onMeetingClick={onMeetingClick}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            dragOverDate={dragOverDate}
-            draggedMeeting={draggedMeeting}
-          />
-        ) : (
-          <DayWeekView
-            displayDays={displayDays}
-            workHours={workHours}
-            getMeetingsForDay={getMeetingsForDay}
-            getMeetingPosition={getMeetingPosition}
-            getMeetingColor={getMeetingColor}
-            onMeetingClick={onMeetingClick}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            dragOverDate={dragOverDate}
-            dragOverHour={dragOverHour}
-            draggedMeeting={draggedMeeting}
-          />
-        )}
-      </div>
-    </div>
+      {/* Reschedule Confirmation Dialog */}
+      <AlertDialog open={!!pendingReschedule} onOpenChange={(open) => !open && cancelReschedule()}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reschedule Meeting</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingReschedule && (
+                <>
+                  Are you sure you want to reschedule <strong>"{pendingReschedule.meeting.subject}"</strong> to{' '}
+                  <strong>{format(pendingReschedule.newStart, 'EEEE, MMMM d, yyyy')}</strong> at{' '}
+                  <strong>{format(pendingReschedule.newStart, 'h:mm a')}</strong>?
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelReschedule} disabled={isRescheduling}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={confirmReschedule} disabled={isRescheduling}>
+              {isRescheduling ? "Rescheduling..." : "Confirm"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 };
 
