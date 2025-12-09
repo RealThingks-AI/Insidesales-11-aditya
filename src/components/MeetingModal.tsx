@@ -16,19 +16,19 @@ import { cn } from "@/lib/utils";
 
 // Common timezones
 const TIMEZONES = [
-  { value: "UTC", label: "UTC (Coordinated Universal Time)" },
-  { value: "Europe/London", label: "London (GMT/BST)" },
-  { value: "Europe/Berlin", label: "Berlin (CET/CEST)" },
-  { value: "Europe/Paris", label: "Paris (CET/CEST)" },
-  { value: "America/New_York", label: "New York (EST/EDT)" },
-  { value: "America/Chicago", label: "Chicago (CST/CDT)" },
-  { value: "America/Denver", label: "Denver (MST/MDT)" },
-  { value: "America/Los_Angeles", label: "Los Angeles (PST/PDT)" },
-  { value: "Asia/Dubai", label: "Dubai (GST)" },
-  { value: "Asia/Kolkata", label: "India (IST)" },
-  { value: "Asia/Singapore", label: "Singapore (SGT)" },
-  { value: "Asia/Tokyo", label: "Tokyo (JST)" },
-  { value: "Australia/Sydney", label: "Sydney (AEST/AEDT)" },
+  { value: "Asia/Kolkata", label: "(GMT+05:30) Chennai, Kolkata, Mumbai, New Delhi" },
+  { value: "UTC", label: "(GMT+00:00) Coordinated Universal Time" },
+  { value: "Europe/London", label: "(GMT+00:00) London, Edinburgh, Dublin" },
+  { value: "Europe/Berlin", label: "(GMT+01:00) Berlin, Vienna, Rome, Stockholm" },
+  { value: "Europe/Paris", label: "(GMT+01:00) Paris, Brussels, Madrid, Amsterdam" },
+  { value: "Asia/Dubai", label: "(GMT+04:00) Dubai, Abu Dhabi, Muscat" },
+  { value: "Asia/Singapore", label: "(GMT+08:00) Singapore, Kuala Lumpur, Perth" },
+  { value: "Asia/Tokyo", label: "(GMT+09:00) Tokyo, Seoul, Osaka" },
+  { value: "Australia/Sydney", label: "(GMT+10:00) Sydney, Melbourne, Brisbane" },
+  { value: "America/New_York", label: "(GMT-05:00) New York, Washington, Boston" },
+  { value: "America/Chicago", label: "(GMT-06:00) Chicago, Dallas, Houston" },
+  { value: "America/Denver", label: "(GMT-07:00) Denver, Phoenix, Salt Lake City" },
+  { value: "America/Los_Angeles", label: "(GMT-08:00) Los Angeles, San Francisco, Seattle" },
 ];
 
 // Duration options
@@ -93,7 +93,7 @@ export const MeetingModal = ({ open, onOpenChange, meeting, onSuccess }: Meeting
   const [contacts, setContacts] = useState<Contact[]>([]);
   
   // Separate state for date/time selection
-  const [timezone, setTimezone] = useState("Europe/Berlin");
+  const [timezone, setTimezone] = useState("Asia/Kolkata");
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [startTime, setStartTime] = useState("09:00");
   const [duration, setDuration] = useState("60"); // Duration in minutes
@@ -362,7 +362,7 @@ export const MeetingModal = ({ open, onOpenChange, meeting, onSuccess }: Meeting
           <div className="space-y-2">
             <Label>Time Zone</Label>
             <Select value={timezone} onValueChange={setTimezone}>
-              <SelectTrigger>
+              <SelectTrigger className="w-80">
                 <SelectValue placeholder="Select timezone" />
               </SelectTrigger>
               <SelectContent className="max-h-60">
