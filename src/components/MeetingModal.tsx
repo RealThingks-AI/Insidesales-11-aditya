@@ -318,7 +318,8 @@ export const MeetingModal = ({ open, onOpenChange, meeting, onSuccess }: Meeting
           attendees,
           startTime: buildISODateTime(startDate, startTime),
           endTime: buildEndISODateTime(startDate, startTime, parseInt(duration)),
-          timezone
+          timezone,
+          description: formData.description
         }
       });
 
