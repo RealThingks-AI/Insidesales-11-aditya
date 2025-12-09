@@ -10,11 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, ExternalLink, X } from "lucide-react";
+import { Search, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, ExternalLink, X, Mail } from "lucide-react";
 import { AccountModal } from "./AccountModal";
 import { AccountColumnCustomizer, AccountColumnConfig } from "./AccountColumnCustomizer";
 import { AccountStatusFilter } from "./AccountStatusFilter";
 import { AccountDeleteConfirmDialog } from "./AccountDeleteConfirmDialog";
+import { SendEmailModal, EmailRecipient } from "./SendEmailModal";
 
 export interface Account {
   id: string;
@@ -83,6 +84,8 @@ const AccountTable = ({
   const [itemsPerPage] = useState(50);
   const [sortField, setSortField] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [emailRecipient, setEmailRecipient] = useState<EmailRecipient | null>(null);
 
   useEffect(() => {
     fetchAccounts();
@@ -419,7 +422,7 @@ const AccountTable = ({
                       )}
                     </TableCell>
                   ))}
-                  <TableCell className="w-32 px-4 py-3">
+                  <TableCell className="w-40 px-4 py-3">
                     <div className="flex items-center justify-center gap-1">
                       <Button 
                         variant="ghost" 
@@ -432,6 +435,22 @@ const AccountTable = ({
                         className="h-8 w-8 p-0"
                       >
                         <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => {
+                          // For accounts, we need to find a contact email or use a generic approach
+                          setEmailRecipient({
+                            name: account.company_name,
+                            company_name: account.company_name,
+                          });
+                          setEmailModalOpen(true);
+                        }} 
+                        title="Send email" 
+                        className="h-8 w-8 p-0 text-primary"
+                      >
+                        <Mail className="w-4 h-4" />
                       </Button>
                       <Button 
                         variant="ghost" 
@@ -517,6 +536,12 @@ const AccountTable = ({
         }}
         isMultiple={false}
         count={1}
+      />
+
+      <SendEmailModal
+        open={emailModalOpen}
+        onOpenChange={setEmailModalOpen}
+        recipient={emailRecipient}
       />
     </div>
   );

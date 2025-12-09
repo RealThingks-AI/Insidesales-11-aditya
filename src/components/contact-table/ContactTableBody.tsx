@@ -356,7 +356,12 @@ export const ContactTableBody = ({
       <SendEmailModal
         open={emailModalOpen}
         onOpenChange={setEmailModalOpen}
-        contact={emailContact}
+        recipient={emailContact ? {
+          name: emailContact.contact_name,
+          email: emailContact.email,
+          company_name: emailContact.company_name,
+          position: emailContact.position,
+        } : null}
       />
     </div>
   );
