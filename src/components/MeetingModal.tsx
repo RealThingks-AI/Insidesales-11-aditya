@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Video, Loader2, CalendarIcon, Clock } from "lucide-react";
+import { Video, Loader2, CalendarIcon, Clock, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Comprehensive timezones (40 options, ordered by GMT offset)
@@ -127,6 +127,7 @@ export const MeetingModal = ({ open, onOpenChange, meeting, onSuccess }: Meeting
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [creatingTeamsMeeting, setCreatingTeamsMeeting] = useState(false);
+  const [cancellingMeeting, setCancellingMeeting] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   
@@ -402,6 +403,55 @@ export const MeetingModal = ({ open, onOpenChange, meeting, onSuccess }: Meeting
     }
   };
 
+  const handleCancelMeeting = async () => {
+    if (!meeting?.id || !meeting?.join_url) {
+      toast({
+        title: "Cannot cancel",
+        description: "No Teams meeting link found for this meeting",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCancellingMeeting(true);
+    try {
+      // Call the edge function to cancel the Teams meeting
+      const { data, error } = await supabase.functions.invoke('cancel-teams-meeting', {
+        body: {
+          meetingId: meeting.id,
+          joinUrl: meeting.join_url
+        }
+      });
+
+      if (error) throw error;
+
+      // Update meeting status to cancelled in the database
+      const { error: updateError } = await supabase
+        .from('meetings')
+        .update({ status: 'cancelled' })
+        .eq('id', meeting.id);
+
+      if (updateError) throw updateError;
+
+      toast({
+        title: "Meeting Cancelled",
+        description: "The Teams meeting has been cancelled",
+      });
+
+      onSuccess();
+      onOpenChange(false);
+    } catch (error: any) {
+      console.error('Error cancelling meeting:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to cancel meeting",
+        variant: "destructive",
+      });
+    } finally {
+      setCancellingMeeting(false);
+    }
+  };
+
   const formatDisplayTime = (time: string) => {
     const [h, m] = time.split(":");
     const hour = parseInt(h);
@@ -583,44 +633,64 @@ export const MeetingModal = ({ open, onOpenChange, meeting, onSuccess }: Meeting
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button 
-              type="button" 
-              disabled={loading || creatingTeamsMeeting}
-              onClick={async (e) => {
-                e.preventDefault();
-                
-                if (!formData.subject || !startDate) {
-                  toast({
-                    title: "Missing fields",
-                    description: "Please fill in subject and start date",
-                    variant: "destructive",
-                  });
-                  return;
-                }
-                
-                // First create Teams meeting and get the join URL
-                let joinUrl = formData.join_url;
-                if (!joinUrl) {
-                  joinUrl = await createTeamsMeeting();
-                }
-                
-                // Now submit the form with the join URL
-                const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
-                await handleSubmit(fakeEvent, joinUrl);
-              }}
-              className="gap-2"
-            >
-              {(loading || creatingTeamsMeeting) ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Video className="h-4 w-4" />
+          <div className="flex justify-between gap-2 pt-4">
+            <div>
+              {meeting && meeting.join_url && (
+                <Button 
+                  type="button" 
+                  variant="destructive"
+                  disabled={cancellingMeeting || loading}
+                  onClick={handleCancelMeeting}
+                  className="gap-2"
+                >
+                  {cancellingMeeting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <XCircle className="h-4 w-4" />
+                  )}
+                  {cancellingMeeting ? "Cancelling..." : "Cancel Meeting"}
+                </Button>
               )}
-              {loading ? "Saving..." : creatingTeamsMeeting ? "Creating Teams Meeting..." : meeting ? "Update" : "Create Meeting"}
-            </Button>
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                Close
+              </Button>
+              <Button 
+                type="button" 
+                disabled={loading || creatingTeamsMeeting || cancellingMeeting}
+                onClick={async (e) => {
+                  e.preventDefault();
+                  
+                  if (!formData.subject || !startDate) {
+                    toast({
+                      title: "Missing fields",
+                      description: "Please fill in subject and start date",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  
+                  // First create Teams meeting and get the join URL
+                  let joinUrl = formData.join_url;
+                  if (!joinUrl) {
+                    joinUrl = await createTeamsMeeting();
+                  }
+                  
+                  // Now submit the form with the join URL
+                  const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
+                  await handleSubmit(fakeEvent, joinUrl);
+                }}
+                className="gap-2"
+              >
+                {(loading || creatingTeamsMeeting) ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Video className="h-4 w-4" />
+                )}
+                {loading ? "Saving..." : creatingTeamsMeeting ? "Creating Teams Meeting..." : meeting ? "Update" : "Create Meeting"}
+              </Button>
+            </div>
           </div>
         </form>
       </DialogContent>
