@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -7,12 +7,15 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, Video, Trash2, Edit, Calendar } from "lucide-react";
+import { Plus, Search, Video, Trash2, Edit, Calendar, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MeetingModal } from "@/components/MeetingModal";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+
+type SortColumn = 'subject' | 'start_time' | 'lead_contact' | 'status' | null;
+type SortDirection = 'asc' | 'desc';
 interface Meeting {
   id: string;
   subject: string;
@@ -47,6 +50,8 @@ const Meetings = () => {
   const [selectedMeetings, setSelectedMeetings] = useState<string[]>([]);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [sortColumn, setSortColumn] = useState<SortColumn>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const fetchMeetings = async () => {
     try {
       setLoading(true);
@@ -88,15 +93,68 @@ const Meetings = () => {
     const meetingStart = new Date(meeting.start_time);
     return meetingStart < now ? 'completed' : 'scheduled';
   };
-  useEffect(() => {
-    const filtered = meetings.filter(meeting => {
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortIcon = (column: SortColumn) => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="h-4 w-4 ml-1 opacity-50" />;
+    }
+    return sortDirection === 'asc' 
+      ? <ArrowUp className="h-4 w-4 ml-1" />
+      : <ArrowDown className="h-4 w-4 ml-1" />;
+  };
+
+  const sortedAndFilteredMeetings = useMemo(() => {
+    let filtered = meetings.filter(meeting => {
       const matchesSearch = meeting.subject?.toLowerCase().includes(searchTerm.toLowerCase()) || meeting.lead_name?.toLowerCase().includes(searchTerm.toLowerCase()) || meeting.contact_name?.toLowerCase().includes(searchTerm.toLowerCase());
       if (statusFilter === "all") return matchesSearch;
       const meetingStatus = getMeetingStatus(meeting);
       return matchesSearch && meetingStatus === statusFilter;
     });
-    setFilteredMeetings(filtered);
-  }, [meetings, searchTerm, statusFilter]);
+
+    if (sortColumn) {
+      filtered = [...filtered].sort((a, b) => {
+        let aValue: string | number = '';
+        let bValue: string | number = '';
+
+        switch (sortColumn) {
+          case 'subject':
+            aValue = a.subject?.toLowerCase() || '';
+            bValue = b.subject?.toLowerCase() || '';
+            break;
+          case 'start_time':
+            aValue = new Date(a.start_time).getTime();
+            bValue = new Date(b.start_time).getTime();
+            break;
+          case 'lead_contact':
+            aValue = (a.lead_name || a.contact_name || '').toLowerCase();
+            bValue = (b.lead_name || b.contact_name || '').toLowerCase();
+            break;
+          case 'status':
+            aValue = getMeetingStatus(a);
+            bValue = getMeetingStatus(b);
+            break;
+        }
+
+        if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return filtered;
+  }, [meetings, searchTerm, statusFilter, sortColumn, sortDirection]);
+
+  useEffect(() => {
+    setFilteredMeetings(sortedAndFilteredMeetings);
+  }, [sortedAndFilteredMeetings]);
   const handleDelete = async (id: string) => {
     try {
       const {
@@ -239,10 +297,38 @@ const Meetings = () => {
                     }
                   }} onCheckedChange={handleSelectAll} aria-label="Select all" />
                   </TableHead>
-                  <TableHead>Subject</TableHead>
-                  <TableHead>Date & Time</TableHead>
-                  <TableHead>Lead/Contact</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>
+                    <button 
+                      onClick={() => handleSort('subject')} 
+                      className="flex items-center hover:text-foreground transition-colors"
+                    >
+                      Subject {getSortIcon('subject')}
+                    </button>
+                  </TableHead>
+                  <TableHead>
+                    <button 
+                      onClick={() => handleSort('start_time')} 
+                      className="flex items-center hover:text-foreground transition-colors"
+                    >
+                      Date & Time {getSortIcon('start_time')}
+                    </button>
+                  </TableHead>
+                  <TableHead>
+                    <button 
+                      onClick={() => handleSort('lead_contact')} 
+                      className="flex items-center hover:text-foreground transition-colors"
+                    >
+                      Lead/Contact {getSortIcon('lead_contact')}
+                    </button>
+                  </TableHead>
+                  <TableHead>
+                    <button 
+                      onClick={() => handleSort('status')} 
+                      className="flex items-center hover:text-foreground transition-colors"
+                    >
+                      Status {getSortIcon('status')}
+                    </button>
+                  </TableHead>
                   <TableHead>Join URL</TableHead>
                   <TableHead className="w-[100px]">Actions</TableHead>
                 </TableRow>
