@@ -1030,6 +1030,155 @@ export type Database = {
         }
         Relationships: []
       }
+      task_subtasks: {
+        Row: {
+          created_at: string
+          id: string
+          is_completed: boolean
+          order_index: number
+          task_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_completed?: boolean
+          order_index?: number
+          task_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_completed?: boolean
+          order_index?: number
+          task_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_subtasks_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          account_id: string | null
+          assigned_to: string | null
+          category: string | null
+          completed_at: string | null
+          contact_id: string | null
+          created_at: string
+          created_by: string | null
+          deal_id: string | null
+          description: string | null
+          due_date: string | null
+          due_time: string | null
+          id: string
+          lead_id: string | null
+          parent_task_id: string | null
+          priority: string
+          recurrence: string | null
+          recurrence_end_date: string | null
+          reminder_date: string | null
+          status: string
+          tags: string[] | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          account_id?: string | null
+          assigned_to?: string | null
+          category?: string | null
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          deal_id?: string | null
+          description?: string | null
+          due_date?: string | null
+          due_time?: string | null
+          id?: string
+          lead_id?: string | null
+          parent_task_id?: string | null
+          priority?: string
+          recurrence?: string | null
+          recurrence_end_date?: string | null
+          reminder_date?: string | null
+          status?: string
+          tags?: string[] | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string | null
+          assigned_to?: string | null
+          category?: string | null
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          deal_id?: string | null
+          description?: string | null
+          due_date?: string | null
+          due_time?: string | null
+          id?: string
+          lead_id?: string | null
+          parent_task_id?: string | null
+          priority?: string
+          recurrence?: string | null
+          recurrence_end_date?: string | null
+          reminder_date?: string | null
+          status?: string
+          tags?: string[] | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_parent_task_id_fkey"
+            columns: ["parent_task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_preferences: {
         Row: {
           created_at: string | null
@@ -1153,6 +1302,9 @@ export type Database = {
       }
     }
     Enums: {
+      task_priority: "high" | "medium" | "low"
+      task_recurrence: "none" | "daily" | "weekly" | "monthly" | "yearly"
+      task_status: "open" | "in_progress" | "completed" | "deferred"
       user_role: "admin" | "manager" | "user"
     }
     CompositeTypes: {
@@ -1281,6 +1433,9 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      task_priority: ["high", "medium", "low"],
+      task_recurrence: ["none", "daily", "weekly", "monthly", "yearly"],
+      task_status: ["open", "in_progress", "completed", "deferred"],
       user_role: ["admin", "manager", "user"],
     },
   },
